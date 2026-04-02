@@ -1,154 +1,195 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createSemester, deleteSemester, fetchSemesters, updateSemester } from '../lib/api';
+
+const formatDate = (value) => {
+  if (!value) return '--';
+  return new Date(value).toLocaleDateString('vi-VN');
+};
 
 export default function SemesterManagement() {
-  // --- Dữ liệu khởi tạo ---
-  const [semesters, setSemesters] = useState([
-    { id: 'HK1_24', name: 'Học kỳ I (2024-2025)', startDate: '2024-08-15', endDate: '2024-12-31', status: 'OPEN' },
-    { id: 'HK2_24', name: 'Học kỳ II (2024-2025)', startDate: '2025-01-15', endDate: '2025-05-31', status: 'CLOSED' }
-  ]);
-
-  // --- Quản lý trạng thái UI & Form ---
+  const [semesters, setSemesters] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [isAdding, setIsAdding] = useState(false);
-  const [editTopicId, setEditTopicId] = useState(null); 
-  const [editFormData, setEditFormData] = useState({ id: '', name: '', startDate: '', endDate: '', status: 'CLOSED' });
+  const [editSemesterId, setEditSemesterId] = useState(null);
   const [newSem, setNewSem] = useState({ id: '', name: '', startDate: '', endDate: '', status: 'CLOSED' });
+  const [editFormData, setEditFormData] = useState({ name: '', startDate: '', endDate: '', status: 'CLOSED' });
 
-  // --- Logic Chỉnh sửa ---
-  const handleEditClick = (sem) => {
-    setEditTopicId(sem.id);
-    setEditFormData({ ...sem });
-    setIsAdding(false);
-  };
-
-  const handleEditFormChange = (e) => {
-    setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
-  };
-
-  const handleSaveEdit = () => {
-    setSemesters(semesters.map((sem) => sem.id === editTopicId ? { ...editFormData } : sem));
-    setEditTopicId(null);
-  };
-
-  // --- Logic Khóa/Mở nhanh ---
-  const toggleStatus = (id) => {
-    setSemesters(semesters.map(s => s.id === id ? { ...s, status: s.status === 'OPEN' ? 'CLOSED' : 'OPEN' } : s));
-  };
-
-  // --- Logic Xóa (Có xác nhận) ---
-  const handleDelete = (sem) => {
-    if (window.confirm(`Xác nhận xóa học kỳ: ${sem.name}?`)) {
-      setSemesters(semesters.filter(s => s.id !== sem.id));
+  const loadSemesters = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const data = await fetchSemesters();
+      setSemesters(
+        data.map((semester) => ({
+          id: semester.MaHocKy,
+          name: semester.TenHocKy,
+          startDate: String(semester.NgayBatDau).slice(0, 10),
+          endDate: String(semester.NgayKetThuc).slice(0, 10),
+          status: semester.TrangThai,
+        })),
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // --- Logic Thêm mới ---
-  const handleSaveNew = () => {
-    if (!newSem.id || !newSem.name) return alert("Vui lòng nhập đủ thông tin!");
-    if (semesters.some(s => s.id === newSem.id)) return alert("Mã đã tồn tại!");
-    setSemesters([newSem, ...semesters]);
+  useEffect(() => {
+    loadSemesters();
+  }, []);
+
+  const handleCreate = async () => {
+    try {
+      await createSemester(newSem);
+      setIsAdding(false);
+      setNewSem({ id: '', name: '', startDate: '', endDate: '', status: 'CLOSED' });
+      await loadSemesters();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleEdit = (semester) => {
+    setEditSemesterId(semester.id);
+    setEditFormData({
+      name: semester.name,
+      startDate: semester.startDate,
+      endDate: semester.endDate,
+      status: semester.status,
+    });
     setIsAdding(false);
-    setNewSem({ id: '', name: '', startDate: '', endDate: '', status: 'CLOSED' });
+  };
+
+  const handleUpdate = async () => {
+    try {
+      await updateSemester(editSemesterId, editFormData);
+      setEditSemesterId(null);
+      await loadSemesters();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm(`Xac nhan xoa hoc ky ${id}?`)) return;
+
+    try {
+      await deleteSemester(id);
+      await loadSemesters();
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   return (
     <div style={containerStyle}>
-      <h2 style={headerStyle}>QUẢN LÝ HỌC KỲ</h2>
-      
-      {!isAdding && !editTopicId && (
-        <button onClick={() => setIsAdding(true)} style={btnAddStyle}>+ Tạo Học Kỳ Mới</button>
+      <h2 style={headerStyle}>QUAN LY HOC KY</h2>
+
+      <div style={toolbarStyle}>
+        <button onClick={() => { setIsAdding(true); setEditSemesterId(null); }} style={btnPrimaryStyle}>+ Tao hoc ky</button>
+        <button onClick={loadSemesters} style={btnRefreshStyle}>Lam moi</button>
+      </div>
+
+      {loading && <p style={infoTextStyle}>Dang tai du lieu...</p>}
+      {error && <p style={errorTextStyle}>Khong tai duoc hoc ky: {error}</p>}
+
+      {!loading && !error && (
+        <table style={tableStyle}>
+          <thead>
+            <tr style={theadRowStyle}>
+              <th style={thStyle}>Ma HK</th>
+              <th style={thStyle}>Ten hoc ky</th>
+              <th style={thStyle}>Thoi gian</th>
+              <th style={thStyle}>Trang thai</th>
+              <th style={thStyle}>Hanh dong</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isAdding && (
+              <tr style={formRowStyle}>
+                <td style={tdStyle}><input value={newSem.id} onChange={(e) => setNewSem({ ...newSem, id: e.target.value })} style={inputStyle} /></td>
+                <td style={tdStyle}><input value={newSem.name} onChange={(e) => setNewSem({ ...newSem, name: e.target.value })} style={inputStyle} /></td>
+                <td style={tdStyle}>
+                  <input type="date" value={newSem.startDate} onChange={(e) => setNewSem({ ...newSem, startDate: e.target.value })} style={inputStyle} />
+                  <input type="date" value={newSem.endDate} onChange={(e) => setNewSem({ ...newSem, endDate: e.target.value })} style={{ ...inputStyle, marginTop: '6px' }} />
+                </td>
+                <td style={tdStyle}>
+                  <select value={newSem.status} onChange={(e) => setNewSem({ ...newSem, status: e.target.value })} style={inputStyle}>
+                    <option value="OPEN">OPEN</option>
+                    <option value="CLOSED">CLOSED</option>
+                  </select>
+                </td>
+                <td style={tdStyle}>
+                  <button onClick={handleCreate} style={btnActionPrimaryStyle}>Luu</button>
+                  <button onClick={() => setIsAdding(false)} style={btnActionSecondaryStyle}>Huy</button>
+                </td>
+              </tr>
+            )}
+
+            {semesters.map((sem) => (
+              <tr key={sem.id} style={rowStyle}>
+                {editSemesterId === sem.id ? (
+                  <>
+                    <td style={tdStyle}>{sem.id}</td>
+                    <td style={tdStyle}><input value={editFormData.name} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} style={inputStyle} /></td>
+                    <td style={tdStyle}>
+                      <input type="date" value={editFormData.startDate} onChange={(e) => setEditFormData({ ...editFormData, startDate: e.target.value })} style={inputStyle} />
+                      <input type="date" value={editFormData.endDate} onChange={(e) => setEditFormData({ ...editFormData, endDate: e.target.value })} style={{ ...inputStyle, marginTop: '6px' }} />
+                    </td>
+                    <td style={tdStyle}>
+                      <select value={editFormData.status} onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })} style={inputStyle}>
+                        <option value="OPEN">OPEN</option>
+                        <option value="CLOSED">CLOSED</option>
+                      </select>
+                    </td>
+                    <td style={tdStyle}>
+                      <button onClick={handleUpdate} style={btnActionPrimaryStyle}>Luu</button>
+                      <button onClick={() => setEditSemesterId(null)} style={btnActionSecondaryStyle}>Huy</button>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td style={tdStyle}>{sem.id}</td>
+                    <td style={{ ...tdStyle, fontWeight: 'bold' }}>{sem.name}</td>
+                    <td style={tdStyle}>{formatDate(sem.startDate)} <br /> den {formatDate(sem.endDate)}</td>
+                    <td style={tdStyle}>
+                      <span style={{ ...badgeStyle, background: sem.status === 'OPEN' ? '#dcfce7' : '#fee2e2', color: sem.status === 'OPEN' ? '#166534' : '#991b1b' }}>
+                        {sem.status}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <button onClick={() => handleEdit(sem)} style={btnEditStyle}>Sua</button>
+                      <button onClick={() => handleDelete(sem.id)} style={btnDeleteStyle}>Xoa</button>
+                    </td>
+                  </>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
-
-      <table style={tableStyle}>
-        <thead>
-          <tr style={theadRowStyle}>
-            <th style={thStyle}>Mã HK</th>
-            <th style={thStyle}>Tên Học Kỳ</th>
-            <th style={thStyle}>Thời gian</th>
-            <th style={thStyle}>Trạng thái</th>
-            <th style={thStyle}>Hành Động</th>
-          </tr>
-        </thead>
-        <tbody>
-          {/* Form thêm mới */}
-          {isAdding && (
-            <tr style={{ background: '#f0fdf4' }}>
-              <td style={tdStyle}><input type="text" placeholder="Mã..." value={newSem.id} onChange={(e) => setNewSem({...newSem, id: e.target.value})} style={inputStyle} /></td>
-              <td style={tdStyle}><input type="text" placeholder="Tên..." value={newSem.name} onChange={(e) => setNewSem({...newSem, name: e.target.value})} style={inputStyle} /></td>
-              <td style={tdStyle}>
-                <input type="date" onChange={(e) => setNewSem({...newSem, startDate: e.target.value})} style={{...inputStyle, marginBottom: '4px'}} />
-                <input type="date" onChange={(e) => setNewSem({...newSem, endDate: e.target.value})} style={inputStyle} />
-              </td>
-              <td style={tdStyle}>Mặc định: ĐÓNG</td>
-              <td style={tdStyle}>
-                <button onClick={handleSaveNew} style={btnSaveStyle}>Lưu</button>
-                <button onClick={() => setIsAdding(false)} style={btnCancelStyle}>Hủy</button>
-              </td>
-            </tr>
-          )}
-
-          {semesters.map((sem) => (
-            <tr key={sem.id} style={rowStyle}>
-              {editTopicId === sem.id ? (
-                /* Chế độ Sửa */
-                <>
-                  <td style={tdStyle}><b>{sem.id}</b></td>
-                  <td style={tdStyle}><input type="text" name="name" value={editFormData.name} onChange={handleEditFormChange} style={inputStyle} /></td>
-                  <td style={tdStyle}>
-                    <input type="date" name="startDate" value={editFormData.startDate} onChange={handleEditFormChange} style={{...inputStyle, marginBottom: '4px'}} />
-                    <input type="date" name="endDate" value={editFormData.endDate} onChange={handleEditFormChange} style={inputStyle} />
-                  </td>
-                  <td style={tdStyle}>
-                    <select name="status" value={editFormData.status} onChange={handleEditFormChange} style={inputStyle}>
-                      <option value="OPEN">MỞ</option>
-                      <option value="CLOSED">ĐÓNG</option>
-                    </select>
-                  </td>
-                  <td style={tdStyle}>
-                    <button onClick={handleSaveEdit} style={btnSaveStyle}>Lưu</button>
-                    <button onClick={() => setEditTopicId(null)} style={btnCancelStyle}>Hủy</button>
-                  </td>
-                </>
-              ) : (
-                /* Chế độ Xem */
-                <>
-                  <td style={tdStyle}>{sem.id}</td>
-                  <td style={{ ...tdStyle, fontWeight: 'bold' }}>{sem.name}</td>
-                  <td style={tdStyle}>{sem.startDate} <br/> đến {sem.endDate}</td>
-                  <td style={tdStyle}>
-                    <span style={{ ...badgeStyle, background: sem.status === 'OPEN' ? '#dcfce7' : '#fee2e2', color: sem.status === 'OPEN' ? '#166534' : '#991b1b' }}>
-                      {sem.status === 'OPEN' ? 'ĐANG MỞ' : 'ĐÃ ĐÓNG'}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <button onClick={() => toggleStatus(sem.id)} style={{ ...btnActionStyle, background: sem.status === 'OPEN' ? '#ef4444' : '#22c55e', color: '#fff' }}>
-                      {sem.status === 'OPEN' ? 'Khóa' : 'Mở'}
-                    </button>
-                    <button onClick={() => handleEditClick(sem)} style={btnEditStyle}>Sửa</button>
-                    <button onClick={() => handleDelete(sem)} style={btnDeleteStyle}>Xóa</button>
-                  </td>
-                </>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }
 
-// --- Hệ thống Styles ---
 const containerStyle = { background: '#fff', padding: '25px', borderRadius: '12px', border: '1px solid #e2e8f0' };
 const headerStyle = { margin: '0 0 20px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '15px' };
-const btnAddStyle = { marginBottom: '20px', padding: '10px 18px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' };
+const toolbarStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', gap: '12px' };
+const btnPrimaryStyle = { padding: '10px 18px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' };
+const btnRefreshStyle = { padding: '10px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' };
+const infoTextStyle = { color: '#475569', margin: '12px 0' };
+const errorTextStyle = { color: '#b91c1c', margin: '12px 0' };
 const tableStyle = { width: '100%', borderCollapse: 'collapse', textAlign: 'left' };
 const theadRowStyle = { background: '#f8fafc', borderBottom: '2px solid #e2e8f0' };
 const thStyle = { padding: '15px 12px', color: '#64748b', fontSize: '13px', textTransform: 'uppercase' };
 const tdStyle = { padding: '15px 12px', fontSize: '14px' };
 const rowStyle = { borderBottom: '1px solid #f1f5f9' };
+const formRowStyle = { background: '#f0fdf4' };
 const inputStyle = { width: '90%', padding: '6px', border: '1px solid #cbd5e1', borderRadius: '4px' };
-const btnSaveStyle = { background: '#22c55e', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' };
-const btnCancelStyle = { background: '#94a3b8', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', marginLeft: '5px' };
-const btnActionStyle = { border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' };
-const btnEditStyle = { background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', marginLeft: '5px', fontWeight: 'bold' };
-const btnDeleteStyle = { background: '#64748b', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', marginLeft: '5px', fontWeight: 'bold' };
 const badgeStyle = { padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold' };
+const btnActionPrimaryStyle = { background: '#22c55e', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' };
+const btnActionSecondaryStyle = { background: '#94a3b8', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', marginLeft: '5px' };
+const btnEditStyle = { background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', marginRight: '5px', fontWeight: 'bold' };
+const btnDeleteStyle = { background: '#ef4444', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' };
