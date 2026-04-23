@@ -1,16 +1,36 @@
-# React + Vite
+# Quan Ly De Tai Thuc Tap
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Repo da duoc tach thanh 2 phan rieng:
 
-Currently, two official plugins are available:
+- `frontend/`: ung dung React + Vite
+- `backend/`: API Node.js + Express + SQL Server
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Cau truc
 
-## React Compiler
+```text
+Quan-ly-de-tai-thuc-tap/
+|-- frontend/
+|-- backend/
+|-- .gitignore
+`-- README.md
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Chay frontend
 
-## Expanding the ESLint configuration
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Frontend mac dinh chay tai `http://localhost:5173`.
+
+## Chay backend
+
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+Backend mac dinh chay tai `http://localhost:5000`.

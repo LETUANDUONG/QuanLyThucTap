@@ -2,10 +2,18 @@ import cors from 'cors';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+import { verifyToken } from './middleware/authMiddleware.js';
+
 import authRoutes from './routes/authRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
-import readRoutes from './routes/readRoutes.js';
-import writeRoutes from './routes/writeRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
+import registrationRoutes from './routes/registrationRoutes.js';
+import reportRoutes from './routes/reportRoutes.js';
+import semesterRoutes from './routes/semesterRoutes.js';
+import topicRoutes from './routes/topicRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,7 +37,16 @@ app.get('/', (_req, res) => {
 
 app.use('/api', healthRoutes);
 app.use('/api', authRoutes);
-app.use('/api', readRoutes);
-app.use('/api', writeRoutes);
+
+// Apply JWT authentication to all routes below
+app.use('/api', verifyToken);
+
+app.use('/api', dashboardRoutes);
+app.use('/api', semesterRoutes);
+app.use('/api', userRoutes);
+app.use('/api', topicRoutes);
+app.use('/api', registrationRoutes);
+app.use('/api', reportRoutes);
+app.use('/api', notificationRoutes);
 
 export default app;

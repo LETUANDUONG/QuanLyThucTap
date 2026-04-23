@@ -1,4 +1,9 @@
 import { getPool, sql } from '../config/db.js';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'jwt_secret_fallback_do_not_use_in_prod';
+const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10);
 
 const roleMap = {
   ADMIN: 'admin',
@@ -59,8 +64,31 @@ export const login = async (req, res) => {
       return sendError(res, 'This account is locked', null, 403);
     }
 
-    if (account.MatKhauHash !== password) {
+    let passwordIsValid = false;
+    let needsHashing = false;
+
+    // Graceful migration logic
+    if (!account.MatKhauHash.startsWith('$2')) {
+      // Legacy unhashed password
+      if (account.MatKhauHash === password) {
+        passwordIsValid = true;
+        needsHashing = true;
+      }
+    } else {
+      // Bcrypt comparison
+      passwordIsValid = await bcrypt.compare(password, account.MatKhauHash);
+    }
+
+    if (!passwordIsValid) {
       return sendError(res, 'Invalid username or password', null, 401);
+    }
+
+    if (needsHashing) {
+      const hashed = await bcrypt.hash(password, SALT_ROUNDS);
+      await pool.request()
+        .input('accountId', sql.Int, account.MaTaiKhoan)
+        .input('hash', sql.NVarChar, hashed)
+        .query(`UPDATE dbo.TaiKhoan SET MatKhauHash = @hash WHERE MaTaiKhoan = @accountId`);
     }
 
     await pool
@@ -97,8 +125,15 @@ export const login = async (req, res) => {
               phone: null,
             };
 
+    const token = jwt.sign(
+      { accountId: account.MaTaiKhoan, username: account.TenDangNhap, role, profile },
+      JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
     return res.json({
       success: true,
+      token,
       data: {
         accountId: account.MaTaiKhoan,
         username: account.TenDangNhap,
@@ -134,15 +169,25 @@ export const changePassword = async (req, res) => {
     }
 
     const account = accountResult.recordset[0];
+    
+    // Verify old password
+    let passwordIsValid = false;
+    if (!account.MatKhauHash.startsWith('$2')) {
+      if (account.MatKhauHash === oldPassword) passwordIsValid = true;
+    } else {
+      passwordIsValid = await bcrypt.compare(oldPassword, account.MatKhauHash);
+    }
 
-    if (account.MatKhauHash !== oldPassword) {
+    if (!passwordIsValid) {
       return sendError(res, 'Current password is incorrect', null, 400);
     }
+
+    const newHashed = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
     await pool
       .request()
       .input('accountId', sql.Int, account.MaTaiKhoan)
-      .input('newPassword', sql.NVarChar, newPassword)
+      .input('newPassword', sql.NVarChar, newHashed)
       .query(`
         UPDATE dbo.TaiKhoan
         SET MatKhauHash = @newPassword, UpdatedAt = SYSDATETIME()
